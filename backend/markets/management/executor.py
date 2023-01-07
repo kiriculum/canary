@@ -1,14 +1,17 @@
+import logging
 from datetime import datetime
 from enum import Enum
 from typing import Optional
 
+import numpy as np
 import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 from django.core.management import CommandError
 from django.db import transaction
 from pandas import Series
 
 from markets.models import TreasuryRates
-import logging
 
 logger = logging.getLogger('django')
 
@@ -89,8 +92,47 @@ class TreasuryRatesSyncer:
         return total, created
 
 
+class MarketSharesSyncer:
+    top500_url = 'https://www.slickcharts.com/sp500'
+    details_url = 'https://www.macrotrends.net/stocks/charts/{}/general-motors/shares-outstanding'
+    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 '
+                             '(KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
+    codes_to_replace = [  # Company codes to find and replace with custom codes
+        ('BRK.B', 'BRK-B'),
+    ]
+
+    @classmethod
+    def sync(cls):
+        data = requests.get(cls.top500_url, headers=cls.headers).text
+        soup = BeautifulSoup(data, 'lxml')
+        companies = {}  # Companies as {CODE: NAME}
+        tbody = soup.select_one('div.col-lg-7 tbody')
+
+        for row in tbody.find_all('tr'):  # Find and collect all present companies
+            cols = row.find_all('td')
+            companies[cols[2].next.text.upper()] = cols[1].next.text
+
+        for code in cls.codes_to_replace:
+            found = companies.pop(code[0], None)
+            if found:
+                companies[code[1]] = found
+
+        ddd = pd.read_excel('sector_ticker_fortune.xlsx').drop('Unnamed: 0', axis=1)
+        bbb = []
+        for i in ddd[ddd['ticker'].isin(companies)]['ticker']:
+            try:
+                urll = requests.get(cls.details_url.format(i))
+                bbb.append(int(BeautifulSoup(urll.text).find_all('tbody')[1].find_all('td')[1].text.replace(',', '')))
+            except:
+                bbb.append(np.nan)
+        bbb[351] = 542.66
+        new_data = ddd[ddd['ticker'].isin(companies)]
+        newest_data = pd.DataFrame(columns=list(ddd[ddd['ticker'].isin(companies)]['ticker']))
+        newest_data.loc[0] = bbb
+
+
 class SyncExecutor:
-    types = ['allrates', 'currentrates']
+    types = ['allrates', 'currentrates', 'marketshares']
 
     @classmethod
     def execute(cls, sync_type: list[str]):
@@ -118,3 +160,7 @@ class SyncExecutor:
 
         return f'Rates were synced with US Treasury for current month\n' \
                f'Total records found - {res[0]}, Inserted new records - {res[1]}'
+
+    @classmethod
+    def sync_marketshares(cls) -> str:
+        MarketSharesSyncer.sync()

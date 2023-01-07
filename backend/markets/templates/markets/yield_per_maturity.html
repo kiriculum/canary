@@ -1,9 +1,35 @@
 {% extends 'markets/base.html' %}
 {% block title %}
-  Rates per day
+  Rates per maturity
 {% endblock title %}
+{% block interface %}
+  <div class="d-flex justify-content-end">
+    <div class="form-floating ms-1">
+      <input type="text"
+             class="form-control flex-shrink-1 "
+             placeholder="placeholder"
+             id="inputSince">
+      <label for="inputSince">Start period</label>
+    </div>
+    <div class="form-floating ms-1">
+      <input type="text"
+             class="form-control flex-shrink-1"
+             placeholder="placeholder"
+             id="inputTo">
+      <label for="inputTo">End period</label>
+    </div>
+    <div class="form-floating ms-1">
+      <input type="text"
+             class="form-control flex-shrink-1"
+             placeholder="placeholder"
+             id="inputLimit">
+      <label for="inputLimit">Max points</label>
+    </div>
+    <button class="btn btn-primary ms-3" id="update">Update</button>
+  </div>
+{% endblock interface %}
 {% block main %}
-  <h1 class="text-center mt-2">US Treasury par yield curve rates per day</h1>
+  <h1 class="text-center mt-2">US Treasury Par Yield Curve Rates per Maturity</h1>
   <div class="d-flex justify-content-center">
     <div style="position: relative; width:85vw">
       <canvas id="chart"></canvas>
@@ -14,27 +40,56 @@
   {{ rates|json_script:'rates' }}
   <script>
     const rates = JSON.parse(document.getElementById('rates').text.replaceAll('NaN','null'))
+    console.log(rates)
 
-    
-    const chart = document.getElementById('chart')
+    const autocolors = window['chartjs-plugin-autocolors']
+    const root = document.getElementById('chart')
     const cfg = {
       type: 'line',
-      data: {
-        datasets: [
-          rates[0],
-          rates[100],
-          rates[200],
-        ],
-      },
+      data: rates,
       options: {
         scales: {
           y: {
             beginAtZero: true
           }
-        }
+        },
+        plugins: {
+          autocolors: {
+            offset: 10
+          }
+        },
       }
     }
 
-    new Chart(chart, cfg)
+    Chart.register(autocolors)
+    var chart = new Chart(root, cfg)
+
+    window.addEventListener("load", (event) => {
+      const since = document.getElementById('inputSince'),
+      to = document.getElementById('inputTo'),
+      limit = document.getElementById('inputLimit'),
+      btn = document.getElementById('update'),
+      params = new URLSearchParams(window.location.search)
+
+      var inputs = [since, to, limit]
+
+      if (params.has('since')){since.value = params.get('since')}
+      if (params.has('to')){to.value = params.get('to')}
+      if (params.has('limit')){limit.value = params.get('limit')}
+    
+
+      btn.addEventListener("click", (event) => {
+        window.location.search = `?since=${since.value}&to=${to.value}&limit=${limit.value}`
+      })
+
+      inputs.forEach((input) => {
+        input.addEventListener("keyup", (event) => {
+          event.preventDefault()
+          if (event.keyCode === 13) {
+            btn.click()
+          }
+        })
+      })
+    })
   </script>
 {% endblock script %}

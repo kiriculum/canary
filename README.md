@@ -1,8 +1,12 @@
 # Canary | Markets helper
-![alt text](canary.png "Canary")
+![alt text](backend/markets/static/markets/canary.png "Canary")
 
-### Project intends to help getting actual data of dynamics in market values, yields, shares.
+### Project intends to help getting important data of dynamics in market values, yields, shares.
 
 
+## Deployment
+#TBD
 
-## Deployment&Setup
+
+## Usage
+#TBD
