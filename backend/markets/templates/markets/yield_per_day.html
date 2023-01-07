@@ -1,0 +1,40 @@
+{% extends 'markets/base.html' %}
+{% block title %}
+  Rates per day
+{% endblock title %}
+{% block main %}
+  <h1 class="text-center mt-2">US Treasury par yield curve rates per day</h1>
+  <div class="d-flex justify-content-center">
+    <div style="position: relative; width:85vw">
+      <canvas id="chart"></canvas>
+    </div>
+  </div>
+{% endblock main %}
+{% block script %}
+  {{ rates|json_script:'rates' }}
+  <script>
+    const rates = JSON.parse(document.getElementById('rates').text.replaceAll('NaN','null'))
+
+    
+    const chart = document.getElementById('chart')
+    const cfg = {
+      type: 'line',
+      data: {
+        datasets: [
+          rates[0],
+          rates[100],
+          rates[200],
+        ],
+      },
+      options: {
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
+      }
+    }
+
+    new Chart(chart, cfg)
+  </script>
+{% endblock script %}
