@@ -1,17 +1,20 @@
 import logging
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from enum import Enum
 from typing import Optional
 
-import numpy as np
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from django.core.management import CommandError
 from django.db import transaction
+from django.db.models import QuerySet
 from pandas import Series
 
-from markets.models import TreasuryRates
+from config.data_sources import us_treasury_monthly_rates, us_treasury_yearly_rates, company_asset_filename, \
+    top500_url, company_details_url, yahoo_finance_url, local_codes_to_yahoo
+from config.settings import ROOT_DIR
+from markets.models import TreasuryRates, Company, Top500, Share, Asset, YahooAssetPrice, YahooStockPrice, Model
 
 logger = logging.getLogger('django')
 
@@ -62,13 +65,12 @@ class TreasuryRatesSyncer:
         TreasuryRatesType.ParYieldCurve: TreasuryParYieldAdapter,
     }
 
-    monthly_url = 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/' \
-                  'daily-treasury-rates.csv/all/{}?type={}&_format=csv'
-    yearly_url = 'https://home.treasury.gov/resource-center/data-chart-center/interest-rates/' \
-                 'daily-treasury-rates.csv/{}/all?type={}&_format=csv'
+    monthly_url = us_treasury_monthly_rates
+    yearly_url = us_treasury_yearly_rates
 
     @classmethod
-    def sync(cls, rate_type: TreasuryRatesType, year: int, month: Optional[int] = None) -> tuple[int, int]:
+    def sync(cls, rate_type: TreasuryRatesType, year: int, month: Optional[int] = None) -> None:
+        """Sync treasure rates for given year or month"""
         if month:
             url = cls.monthly_url.format(f'{year}{month:02}', rate_type.value)
         else:
@@ -87,55 +89,186 @@ class TreasuryRatesSyncer:
         with transaction.atomic():  # Single commit to DB for all the writes
             for total, row in enumerate(rates.iterrows(), 1):
                 created += adapter.validate_and_store(row[1])
-        logger.info('Sync finished')
 
-        return total, created
+        logger.info(f'Rates were synced with US Treasury.\n'
+                    f'Total records found - {total}, Inserted new records - {created}')
+
+
+class CompanyAssetSyncer:
+    companies_file = ROOT_DIR / company_asset_filename
+
+    @classmethod
+    def sync(cls) -> None:
+        if not cls.companies_file.exists():
+            raise CommandError(f'File with companies and assets not found in path: {cls.companies_file}')
+        logger.info(f'Syncing companies and assets from file: {company_asset_filename}')
+        companies_df = pd.read_excel(cls.companies_file, sheet_name='companies')
+
+        total = len(companies_df.index)
+        res = Company.objects.bulk_create(  # DB bulk insertion
+            [Company(sector=getattr(row, 'sector'), name=getattr(row, 'company'), code=getattr(row, 'ticker'))
+             for row in companies_df.itertuples(index=False)],
+            update_conflicts=True, update_fields=['sector', 'name'], unique_fields=['code']
+        )
+        logger.info(f'Companies were synced\nInserted/updated {len(res)} records out of total {total}\n')
+
+        assets_df = pd.read_excel(cls.companies_file, sheet_name='assets')
+
+        total = len(assets_df.index)
+        res = Asset.objects.bulk_create(  # DB bulk insertion
+            [Asset(name=getattr(row, 'name'), code=getattr(row, 'ticker'))
+             for row in assets_df.itertuples(index=False)],
+            update_conflicts=True, update_fields=['name'], unique_fields=['code']
+        )
+        logger.info(f'Assets were synced\nInserted/updated {len(res)} records out of total {total}\n')
 
 
 class MarketSharesSyncer:
-    top500_url = 'https://www.slickcharts.com/sp500'
-    details_url = 'https://www.macrotrends.net/stocks/charts/{}/general-motors/shares-outstanding'
     headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_5) AppleWebKit/537.36 '
                              '(KHTML, like Gecko) Chrome/50.0.2661.102 Safari/537.36'}
-    codes_to_replace = [  # Company codes to find and replace with custom codes
-        ('BRK.B', 'BRK-B'),
-    ]
 
     @classmethod
-    def sync(cls):
-        data = requests.get(cls.top500_url, headers=cls.headers).text
+    def sync_top500(cls) -> None:
+        """Sync today's top500 companies"""
+        logger.info('Syncing top500')
+        data = requests.get(top500_url, headers=cls.headers).text
         soup = BeautifulSoup(data, 'lxml')
-        companies = {}  # Companies as {CODE: NAME}
+        top500_list = []  # Company codes
         tbody = soup.select_one('div.col-lg-7 tbody')
 
         for row in tbody.find_all('tr'):  # Find and collect all present companies
             cols = row.find_all('td')
-            companies[cols[2].next.text.upper()] = cols[1].next.text
+            top500_list.append(cols[2].next.text.upper())
 
-        for code in cls.codes_to_replace:
-            found = companies.pop(code[0], None)
-            if found:
-                companies[code[1]] = found
+        companies = Company.objects.filter(code__in=top500_list)
+        res = Top500.objects.bulk_create(
+            [Top500(company=company, date=date.today()) for company in companies], ignore_conflicts=True)
+        logger.info(f'Synced {len(res)} companies of today\'s top500')
 
-        ddd = pd.read_excel('sector_ticker_fortune.xlsx').drop('Unnamed: 0', axis=1)
-        bbb = []
-        for i in ddd[ddd['ticker'].isin(companies)]['ticker']:
+    @classmethod
+    def sync_shares_count(cls) -> None:
+        """Sync share counts for the last available top500"""
+        logger.info('Syncing shares count for current top500 companies')
+        share_obj_list = []
+        last_top500 = Top500.objects.last_top500().select_related('company')
+        not_found = []
+
+        total = last_top500.count()
+        updated = 0
+        logger.info(f'Going to fetch and process data for {total} companies')
+        for index, top500 in enumerate(last_top500):
+            url = company_details_url.format(top500.company.code)
+            try:  # Exceeding the site's request limitations
+                data = requests.get(url).text
+            except requests.TooManyRedirects:
+                broke = top500.company.code
+                break
+            soup = BeautifulSoup(data, 'lxml')
+
+            tbody = soup.find_all('tbody')
+            if not tbody:  # No table for a company on the site
+                not_found.append(top500.code)
+                continue
+            table = tbody[1]
+            for row in table.find_all('tr'):
+                cols = row.find_all('td')
+                report_date = datetime.strptime(cols[0].text, '%Y-%m-%d').date()
+                try:  # Sometimes the table on the site have rows with no count for a date
+                    count = int(cols[1].text.replace(',', ''))
+                except ValueError:
+                    continue
+                share_obj_list.append(Share(company=top500.company, date=report_date, count=count))
+            updated += 1
+            if index and not index % 50:
+                logger.info(f'Synced shares count for {index} out of {total} companies')
+        else:  # No breaks
+            broke = None
+        if broke:
+            logger.warning(f'Syncing was stopped while dealing with company {broke}". '
+                           f'It\'s probably because of site\'s request limitations')
+        Share.objects.bulk_create(share_obj_list, ignore_conflicts=True)
+        logger.info(f'Synced shares for {updated} companies out of {total}.')
+        logger.warning("Not found share count for: " + ", ".join(not_found)) if not_found else None
+
+    @classmethod
+    def process_prices(cls, series: Series):
+        if series.name == 'Date':
+            return series.apply(lambda x: datetime.strptime(x, '%Y-%m-%d').date())
+        return series.apply(lambda x: round(float(x), 2))
+
+    @classmethod
+    def transform_code(cls, code: str) -> str:
+        """Try to transform a local code to a Yahoo code"""
+        if len(code) > 6:
+            return code
+        if '.' in code:
+            if code[-1] == 'V':
+                return code + 'I'
+            code = code.replace('.', '-')
+            if code[-1] == 'U':
+                return code + 'N'
+        return code
+
+    @classmethod
+    def sync_assetprices(cls) -> None:
+        query = Asset.objects.all()
+        cls.base_sync_prices(query, 'asset', YahooAssetPrice)
+
+    @classmethod
+    def sync_stockprices(cls) -> None:
+        last_top500 = Top500.objects.last_top500()
+        query = Company.objects.filter(top500__in=last_top500)
+        cls.base_sync_prices(query, 'company', YahooStockPrice)
+
+    @classmethod
+    def base_sync_prices(cls, query: QuerySet, item_name: str, price_model: type[Model]) -> None:
+        """Sync stock prices for top500 from Yahoo Finance"""
+        total = query.count()
+        logger.info(f'Starting sync prices for {total} companies')
+        updated = 0
+        error_skipped = []
+        already_fresh = 0
+        for updated, item in enumerate(query, 1):
+            yahoo_code = item.code
+            if item_name == 'company':
+                yahoo_code = local_codes_to_yahoo.get(item.code, cls.transform_code(item.code))
+            last_price = price_model.objects.filter(**{item_name: item}).order_by('-date').first()
+            to = datetime(*date.today().timetuple()[0:3])
+            # If no prices are present - fetch data for last 3 years
+            since = datetime(*last_price.date.timetuple()[0:3]) if last_price else to - timedelta(days=365 * 3)
+            if to - since <= timedelta(days=1):  # Skip if period is less than 1 day
+                already_fresh += 1
+                continue
+            url = yahoo_finance_url.format(yahoo_code, int(since.timestamp()), int(to.timestamp()))
             try:
-                urll = requests.get(cls.details_url.format(i))
-                bbb.append(int(BeautifulSoup(urll.text).find_all('tbody')[1].find_all('td')[1].text.replace(',', '')))
-            except:
-                bbb.append(np.nan)
-        bbb[351] = 542.66
-        new_data = ddd[ddd['ticker'].isin(companies)]
-        newest_data = pd.DataFrame(columns=list(ddd[ddd['ticker'].isin(companies)]['ticker']))
-        newest_data.loc[0] = bbb
+                prices = pd.read_csv(url)
+            except requests.TooManyRedirects:
+                error_skipped.append([item.code])
+                continue
+            prices.dropna(inplace=True)
+            prices = prices.apply(cls.process_prices)
+            prices.columns = list(map(str.lower, prices.columns))
+            stock_prices = [
+                price_model(
+                    date=getattr(row, 'date'), open=getattr(row, 'open'), high=getattr(row, 'high'),
+                    low=getattr(row, 'low'), close=getattr(row, 'close'), volume=getattr(row, 'volume'),
+                    **{item_name: item}) for row in prices.itertuples(index=False)
+            ]
+            price_model.objects.bulk_create(stock_prices, ignore_conflicts=True)
+            if updated and updated % 50:
+                logger.info(f'Synced prices for {updated} {item_name}')
+        logger.info(f'Synced prices for {updated} {item_name} of {query.count()}.\n'
+                    f'{already_fresh} {item_name} are already up-to-date. '
+                    f'{error_skipped} were skipped due to network errors')
 
 
 class SyncExecutor:
-    types = ['allrates', 'currentrates', 'marketshares']
+    """Main sync executor"""
+    types = ['localassets', 'allrates', 'currentrates', 'marketshares']
 
     @classmethod
     def execute(cls, sync_type: list[str]):
+        """Fetch option and run specified sync"""
         if sync_type not in cls.types:
             raise CommandError(f'Wrong sync type: {sync_type}')
         res = getattr(cls, f'sync_{sync_type}')()
@@ -143,24 +276,31 @@ class SyncExecutor:
 
     @classmethod
     def sync_allrates(cls) -> str:
+        """Sync treasury rates for 3 years"""
         now = datetime.now()
-        all_res = [
-            TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year),
-            TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year - 1),
-            TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year - 2),
-        ]
-        all_res = list(map(sum, zip(*all_res)))  # Sum results of all syncs
-        return f'Rates were synced with US Treasury for past three years\n' \
-               f'Total records found - {all_res[0]}, Inserted new records - {all_res[1]}'
+        TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year)
+        TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year - 1)
+        TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year - 2)
+        return 'Sync rates for last three years finished\n'
 
     @classmethod
     def sync_currentrates(cls) -> str:
+        """Sync treasury rates for current month"""
         now = datetime.now()
-        res = TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year, month=now.month)
-
-        return f'Rates were synced with US Treasury for current month\n' \
-               f'Total records found - {res[0]}, Inserted new records - {res[1]}'
+        TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year, month=now.month)
+        return 'Sync rates for current month finished\n'
 
     @classmethod
     def sync_marketshares(cls) -> str:
-        MarketSharesSyncer.sync()
+        """Sync top500, share counts and market prices"""
+        logger.info('Starting market shares sync')
+        MarketSharesSyncer.sync_top500()
+        MarketSharesSyncer.sync_shares_count()
+        MarketSharesSyncer.sync_stockprices()
+        MarketSharesSyncer.sync_assetprices()
+        return 'Sync market shares finished\n'
+
+    @classmethod
+    def sync_localassets(cls) -> str:
+        CompanyAssetSyncer.sync()
+        return 'Sync local companies and assets finished\n'
