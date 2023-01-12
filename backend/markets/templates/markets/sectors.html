@@ -1,0 +1,85 @@
+{% extends 'markets/base.html' %}
+{% load tags %}
+{% block title %}
+  Sectors
+{% endblock title %}
+{% block main %}
+  <div class="container justify-content-center overflow-auto">
+    <h2 class="text-center mt-2">Market Sectors Performance</h2>
+    <table class="table table-sm table-hover">
+      <thead>
+        <tr>
+          <th scope='col'>Sector</th>
+          <th class="text-center" scope='col'>Change(day)</th>
+          <th class="text-center" scope='col'>Change(week)</th>
+          <th class="text-center" scope='col'>Change(month)</th>
+          <th class="text-center" scope='col'>Change(quarter)</th>
+          <th class="text-center" scope='col'>Change(half year)</th>
+          <th class="text-center" scope='col'>Change(year)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for sector, perf in sectors.items %}
+          <tr id="sector-{{ sector }}" class="collapsable">
+            <th scope='row'>{{ sector|capfirst }}</th>
+            <td class="text-center {% if perf.sector_change_day > 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ perf.sector_change_day }} %
+            </td>
+            <td class="text-center {% if perf.sector_change_week > 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ perf.sector_change_week }} %
+            </td>
+            <td class="text-center {% if perf.sector_change_month > 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ perf.sector_change_month }} %
+            </td>
+            <td class="text-center {% if perf.sector_change_quart > 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ perf.sector_change_quart }} %
+            </td>
+            <td class="text-center {% if perf.sector_change_halfyear > 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ perf.sector_change_halfyear }} %
+            </td>
+            <td class="text-center {% if perf.sector_change_year > 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ perf.sector_change_year }} %
+            </td>
+          </tr>
+          {% for i in perf.top_change_day %}
+            <tr class="collapse collapsable-{{ sector }}">
+              <th scope="row" class="text-muted">Top{{ forloop.counter }}</th>
+              <td class="text-center">{{ perf.top_change_day|company_cell:forloop.counter }}</td>
+              <td class="text-center">{{ perf.top_change_week|company_cell:forloop.counter }}</td>
+              <td class="text-center">{{ perf.top_change_month|company_cell:forloop.counter }}</td>
+              <td class="text-center">{{ perf.top_change_quart|company_cell:forloop.counter }}</td>
+              <td class="text-center">{{ perf.top_change_halfyear|company_cell:forloop.counter }}</td>
+              <td class="text-center">{{ perf.top_change_year|company_cell:forloop.counter }}</td>
+            </tr>
+          {% endfor %}
+          {% for i in perf.bot_change_day %}
+          <tr class="collapse collapsable-{{ sector }}">
+            <th scope="row" class="text-muted">Bot{{ forloop.counter }}</th>
+            <td class="text-center">{{ perf.bot_change_day|company_cell:forloop.counter }}</td>
+            <td class="text-center">{{ perf.bot_change_week|company_cell:forloop.counter }}</td>
+            <td class="text-center">{{ perf.bot_change_month|company_cell:forloop.counter }}</td>
+            <td class="text-center">{{ perf.bot_change_quart|company_cell:forloop.counter }}</td>
+            <td class="text-center">{{ perf.bot_change_halfyear|company_cell:forloop.counter }}</td>
+            <td class="text-center">{{ perf.bot_change_year|company_cell:forloop.counter }}</td>
+          </tr>
+        {% endfor %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock main %}
+{% block script %}
+  <script>
+    let sectors = document.getElementsByClassName('collapsable')
+    for (let i=0; i<sectors.length; i++){
+      let elem = sectors[i]
+      elem.addEventListener('click', (event) => {
+        const sector = event.target.parentNode.attributes.id.value.match(/sector-(.+)/)[1]
+        const collapsable = document.getElementsByClassName(`collapsable-${sector}`)
+        for (let j=0; j<collapsable.length; j++){
+          collapsable[j].classList.toggle('collapse')
+        }
+      })
+    }
+  </script>
+{% endblock script %}

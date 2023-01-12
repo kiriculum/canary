@@ -19,13 +19,7 @@
     const chart = document.getElementById('chart')
     const cfg = {
       type: 'line',
-      data: {
-        datasets: [
-          rates[0],
-          rates[100],
-          rates[200],
-        ],
-      },
+      data: rates,
       options: {
         scales: {
           y: {

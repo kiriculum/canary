@@ -113,10 +113,30 @@ AUTH_PASSWORD_VALIDATORS = [
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{asctime}:{levelname}:{module}:{funcName} - {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%d %H:%M:%S'
+        },
+        'simple': {
+            'format': '{asctime}:{levelname}:{funcName} - {message}',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+            'style': '{',
+        }
+    },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
+            'formatter': 'simple',
         },
+        'file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': ROOT_DIR / 'logs' / 'django.log',
+            'maxBytes': 5 * 1024 * 1024,
+            'backupCount': 3,
+            'formatter': 'verbose',
+        }
     },
     'root': {
         'handlers': ['console'],
@@ -124,10 +144,15 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
+            'handlers': ['console', 'file'],
             'level': env('DJANGO_LOG_LEVEL'),
             'propagate': False,
         },
+        'django-sync': {
+            'handlers': ['console', 'file'],
+            'level': env('DJANGO_LOG_LEVEL'),
+            'propagate': False,
+        }
     },
 }
 

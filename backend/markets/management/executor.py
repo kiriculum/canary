@@ -16,7 +16,7 @@ from config.data_sources import us_treasury_monthly_rates, us_treasury_yearly_ra
 from config.settings import ROOT_DIR
 from markets.models import TreasuryRates, Company, Top500, Share, Asset, YahooAssetPrice, YahooStockPrice, Model
 
-logger = logging.getLogger('django')
+logger = logging.getLogger('django-sync')
 
 
 class TreasuryRatesType(Enum):
@@ -150,24 +150,25 @@ class MarketSharesSyncer:
         """Sync share counts for the last available top500"""
         logger.info('Syncing shares count for current top500 companies')
         share_obj_list = []
-        last_top500 = Top500.objects.last_top500().select_related('company')
+        last_top500 = Company.objects.last_top500()
         not_found = []
 
         total = last_top500.count()
         updated = 0
         logger.info(f'Going to fetch and process data for {total} companies')
-        for index, top500 in enumerate(last_top500):
-            url = company_details_url.format(top500.company.code)
+        for index, company in enumerate(last_top500):
+            url = company_details_url.format(company.code)
             try:  # Exceeding the site's request limitations
                 data = requests.get(url).text
             except requests.TooManyRedirects:
-                broke = top500.company.code
+                broke = company.code
                 break
             soup = BeautifulSoup(data, 'lxml')
 
             tbody = soup.find_all('tbody')
             if not tbody:  # No table for a company on the site
-                not_found.append(top500.code)
+                logger.warning(f'No table with share details found on site for a company {company.code}')
+                not_found.append(company.code)
                 continue
             table = tbody[1]
             for row in table.find_all('tr'):
@@ -177,7 +178,7 @@ class MarketSharesSyncer:
                     count = int(cols[1].text.replace(',', ''))
                 except ValueError:
                     continue
-                share_obj_list.append(Share(company=top500.company, date=report_date, count=count))
+                share_obj_list.append(Share(company=company, date=report_date, count=count))
             updated += 1
             if index and not index % 50:
                 logger.info(f'Synced shares count for {index} out of {total} companies')
@@ -186,15 +187,15 @@ class MarketSharesSyncer:
         if broke:
             logger.warning(f'Syncing was stopped while dealing with company {broke}". '
                            f'It\'s probably because of site\'s request limitations')
-        Share.objects.bulk_create(share_obj_list, ignore_conflicts=True)
+        Share.objects.bulk_create(share_obj_list)
         logger.info(f'Synced shares for {updated} companies out of {total}.')
         logger.warning("Not found share count for: " + ", ".join(not_found)) if not_found else None
 
-    @classmethod
-    def process_prices(cls, series: Series):
-        if series.name == 'Date':
-            return series.apply(lambda x: datetime.strptime(x, '%Y-%m-%d').date())
-        return series.apply(lambda x: round(float(x), 2))
+    @staticmethod
+    def cast_dataframe(series: Series):
+        if series.name == 'volume':
+            return series.apply(int)
+        return series.apply(lambda x: round(float(x), 4))
 
     @classmethod
     def transform_code(cls, code: str) -> str:
@@ -227,7 +228,8 @@ class MarketSharesSyncer:
         logger.info(f'Starting sync prices for {total} companies')
         updated = 0
         error_skipped = []
-        already_fresh = 0
+        already_fresh = []
+
         for updated, item in enumerate(query, 1):
             yahoo_code = item.code
             if item_name == 'company':
@@ -235,9 +237,12 @@ class MarketSharesSyncer:
             last_price = price_model.objects.filter(**{item_name: item}).order_by('-date').first()
             to = datetime(*date.today().timetuple()[0:3])
             # If no prices are present - fetch data for last 3 years
-            since = datetime(*last_price.date.timetuple()[0:3]) if last_price else to - timedelta(days=365 * 3)
-            if to - since <= timedelta(days=1):  # Skip if period is less than 1 day
-                already_fresh += 1
+            if last_price:
+                since = datetime(*last_price.date.timetuple()[0:3]) - timedelta(days=3)  # 3 days offset to interleave
+            else:
+                since = to - timedelta(days=365 * 3)
+            if to - since <= timedelta(days=4):  # Skip if period distance is less than 1 day
+                already_fresh.append(item.code)
                 continue
             url = yahoo_finance_url.format(yahoo_code, int(since.timestamp()), int(to.timestamp()))
             try:
@@ -245,26 +250,30 @@ class MarketSharesSyncer:
             except requests.TooManyRedirects:
                 error_skipped.append([item.code])
                 continue
-            prices.dropna(inplace=True)
-            prices = prices.apply(cls.process_prices)
+            # Process price DataFrame
+            prices.index = pd.DatetimeIndex(prices['Date'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d')))
+            prices.drop('Date', axis=1, inplace=True)
             prices.columns = list(map(str.lower, prices.columns))
-            stock_prices = [
+            prices = prices.resample('D').interpolate(limit=30)
+            prices = prices.apply(cls.cast_dataframe)
+            prices.dropna(inplace=True)
+
+            stock_prices = [  # Building SQL QuerySet
                 price_model(
-                    date=getattr(row, 'date'), open=getattr(row, 'open'), high=getattr(row, 'high'),
-                    low=getattr(row, 'low'), close=getattr(row, 'close'), volume=getattr(row, 'volume'),
-                    **{item_name: item}) for row in prices.itertuples(index=False)
+                    date=row.Index.date(), open=row.open, high=row.high, low=row.low, close=row.close,
+                    volume=row.volume, **{item_name: item}) for row in prices.itertuples()
             ]
             price_model.objects.bulk_create(stock_prices, ignore_conflicts=True)
-            if updated and updated % 50:
-                logger.info(f'Synced prices for {updated} {item_name}')
+            if updated and not updated % 50:
+                logger.info(f'Synced prices for {updated} {item_name}s')
         logger.info(f'Synced prices for {updated} {item_name} of {query.count()}.\n'
-                    f'{already_fresh} {item_name} are already up-to-date. '
-                    f'{error_skipped} were skipped due to network errors')
+                    f'{len(already_fresh)} {"".join(["[", " ,".join(already_fresh[:5]), "...", "]"])} '
+                    f'{item_name}s are already up-to-date. {error_skipped} were skipped due to network errors')
 
 
 class SyncExecutor:
     """Main sync executor"""
-    types = ['localassets', 'allrates', 'currentrates', 'marketshares']
+    types = ['localassets', 'allrates', 'currentrates', 'top500', 'marketshares', 'prices', 'allmarkets']
 
     @classmethod
     def execute(cls, sync_type: list[str]):
@@ -291,9 +300,25 @@ class SyncExecutor:
         return 'Sync rates for current month finished\n'
 
     @classmethod
+    def sync_top500(cls) -> str:
+        MarketSharesSyncer.sync_top500()
+        return 'Sync top500 finished\n'
+
+    @classmethod
     def sync_marketshares(cls) -> str:
+        MarketSharesSyncer.sync_shares_count()
+        return 'Sync market shares count finished\n'
+
+    @classmethod
+    def sync_prices(cls) -> str:
+        MarketSharesSyncer.sync_stockprices()
+        MarketSharesSyncer.sync_assetprices()
+        return 'Sync market shares count finished\n'
+
+    @classmethod
+    def sync_allmarkets(cls) -> str:
         """Sync top500, share counts and market prices"""
-        logger.info('Starting market shares sync')
+        logger.info('Starting all market values sync')
         MarketSharesSyncer.sync_top500()
         MarketSharesSyncer.sync_shares_count()
         MarketSharesSyncer.sync_stockprices()
