@@ -287,9 +287,9 @@ class SyncExecutor:
     def sync_allrates(cls) -> str:
         """Sync treasury rates for 3 years"""
         now = datetime.now()
-        TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year)
-        TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year - 1)
-        TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year - 2)
+        [
+            TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year - i) for i in range(15)
+        ]
         return 'Sync rates for last three years finished\n'
 
     @classmethod

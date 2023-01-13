@@ -1,9 +1,8 @@
-from datetime import datetime
-
 from django.db.models import F
 from django.http.request import HttpRequest
 from django.views.generic import TemplateView
 
+from .helpers import parse_date
 from .models import TreasuryRates
 from .reports import get_market_shares
 
@@ -27,16 +26,28 @@ class YieldPerDayView(TemplateView):
 
         res = list(map(TreasuryRates.serialize_per_day,
                        TreasuryRates.objects.order_by('-date').values(*fields)))
+        full_res = []
+
+        when = parse_date(kwargs['params'].get('when'))
+        if when:
+            try:
+                custom_res = TreasuryRates.objects.filter(date=when).values(*fields)
+                if custom_res.count():
+                    custom_res = custom_res.first()
+                    custom_res = TreasuryRates.serialize_per_day(custom_res)
+                    custom_res['label'] = custom_res['label'] + ' (Custom)'
+                    full_res.append(custom_res)
+            except ValueError:
+                pass
 
         selections = {
-            'today': 0,
-            'week': 5,
-            'month': 20,
-            'quarter': 60,
-            'half year': 120,
-            'year': 250
+            'Today': 0,
+            'Week': 5,
+            'Month': 20,
+            'Quarter': 60,
+            'Half Year': 120,
+            'Year': 250
         }
-        full_res = []
         for period, offset in selections.items():
             if len(res) < offset:
                 break
@@ -57,17 +68,6 @@ class YieldPerMaturityView(TemplateView):
         kwargs['params'] = request.GET
         return super().get(request, *args, **kwargs)
 
-    @classmethod
-    def parse_date(cls, date_str: str):
-        try:
-            return datetime.strptime(date_str, '%Y-%m').date()
-        except ValueError:
-            pass
-        try:
-            return datetime.strptime(date_str, '%Y').date()
-        except ValueError:
-            pass
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         params = kwargs['params']
@@ -78,7 +78,7 @@ class YieldPerMaturityView(TemplateView):
         # Filter data for a period
         for filt_str, border_str in [('date__gte', 'since'), ('date__lte', 'to')]:
             border = params.get(border_str)
-            border = self.parse_date(border) if border else None
+            border = parse_date(border) if border else None
             if border:
                 query = query.filter(**{filt_str: border})
 
@@ -102,8 +102,16 @@ class SectorsView(TemplateView):
     """View class for Market Sectors page"""
     template_name = 'markets/sectors.html'
 
+    def get(self, request: HttpRequest, *args, **kwargs):
+        kwargs['params'] = request.GET
+        return super().get(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        params = kwargs['params']
+        custom_since = parse_date(params.get('since'))
+        if custom_since:
+            context['custom'] = True
 
-        context['sectors'] = get_market_shares()
+        context['sectors'] = get_market_shares(custom_since)
         return context

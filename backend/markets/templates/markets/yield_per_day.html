@@ -2,8 +2,20 @@
 {% block title %}
   Rates per day
 {% endblock title %}
+{% block interface %}
+  <div class="d-flex justify-content-end">
+    <div class="form-floating ms-1">
+      <input type="text"
+             class="form-control flex-shrink-1 "
+             placeholder="YY/MM/DD"
+             id="inputWhen">
+      <label for="inputWhen">Custom date</label>
+    </div>
+    <button class="btn btn-primary ms-3" id="update">Update</button>
+  </div>
+{% endblock interface %}
 {% block main %}
-  <h1 class="text-center mt-2">US Treasury Par Yield Curve Rates per Day</h1>
+  <h1 class="text-center mt-2">US Government Bonds - Yields Curve</h1>
   <div class="d-flex justify-content-center">
     <div style="position: relative; width:85vw">
       <canvas id="chart"></canvas>
@@ -23,12 +35,62 @@
       options: {
         scales: {
           y: {
-            beginAtZero: true
+            beginAtZero: true,
+            ticks:{
+              font:{
+                size: 16,
+                weight: "bold",
+              }  
+            }
+          },
+          x: {
+            ticks:{
+              font:{
+                size: 16,
+                weight: "bold",
+              }
+            }
+          }
+        },
+        plugins: {
+          autocolors: {
+            offset: 10
+          },
+          legend:{
+            labels:{
+              font:{
+                size: 16,
+              }
+            }
           }
         }
       }
     }
-
+    Chart.register(window['chartjs-plugin-autocolors'])
     new Chart(chart, cfg)
+
+    window.addEventListener("load", (event) => {
+      const when = document.getElementById('inputWhen'),
+      btn = document.getElementById('update'),
+      params = new URLSearchParams(window.location.search)  
+
+      var inputs = [when]
+
+      if (params.has('when')){when.value = params.get('when')}
+    
+
+      btn.addEventListener("click", (event) => {
+        window.location.search = `?when=${when.value}`
+      })
+
+      inputs.forEach((input) => {
+        input.addEventListener("keyup", (event) => {
+          event.preventDefault()
+          if (event.keyCode === 13) {
+            btn.click()
+          }
+        })
+      })
+    })
   </script>
 {% endblock script %}

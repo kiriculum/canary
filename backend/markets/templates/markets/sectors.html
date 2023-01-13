@@ -3,6 +3,18 @@
 {% block title %}
   Sectors
 {% endblock title %}
+{% block interface %}
+  <div class="d-flex justify-content-end">
+    <div class="form-floating ms-1">
+      <input type="text"
+             class="form-control flex-shrink-1 "
+             placeholder="YY/MM/DD"
+             id="inputSince">
+      <label for="inputSince">Custom date</label>
+    </div>
+    <button class="btn btn-primary ms-3" id="update">Update</button>
+  </div>
+{% endblock interface %}
 {% block main %}
   <div class="container justify-content-center overflow-auto">
     <h2 class="text-center mt-2">Market Sectors Performance</h2>
@@ -10,59 +22,73 @@
       <thead>
         <tr>
           <th scope='col'>Sector</th>
-          <th class="text-center" scope='col'>Change(day)</th>
-          <th class="text-center" scope='col'>Change(week)</th>
-          <th class="text-center" scope='col'>Change(month)</th>
-          <th class="text-center" scope='col'>Change(quarter)</th>
-          <th class="text-center" scope='col'>Change(half year)</th>
-          <th class="text-center" scope='col'>Change(year)</th>
+          {% if custom %}<th class="text-center" scope='col'>Custom</th>{% endif %}
+          <th class="text-center" scope='col'>1D</th>
+          <th class="text-center" scope='col'>1W</th>
+          <th class="text-center" scope='col'>1M</th>
+          <th class="text-center" scope='col'>3M</th>
+          <th class="text-center" scope='col'>6M</th>
+          <th class="text-center" scope='col'>12M</th>
         </tr>
       </thead>
       <tbody>
         {% for sector, perf in sectors.items %}
           <tr id="sector-{{ sector }}" class="collapsable">
             <th scope='row'>{{ sector|capfirst }}</th>
-            <td class="text-center {% if perf.sector_change_day > 0 %}text-success{% else %}text-danger{% endif %}">
-              {{ perf.sector_change_day }} %
-            </td>
-            <td class="text-center {% if perf.sector_change_week > 0 %}text-success{% else %}text-danger{% endif %}">
-              {{ perf.sector_change_week }} %
-            </td>
-            <td class="text-center {% if perf.sector_change_month > 0 %}text-success{% else %}text-danger{% endif %}">
-              {{ perf.sector_change_month }} %
-            </td>
-            <td class="text-center {% if perf.sector_change_quart > 0 %}text-success{% else %}text-danger{% endif %}">
-              {{ perf.sector_change_quart }} %
-            </td>
-            <td class="text-center {% if perf.sector_change_halfyear > 0 %}text-success{% else %}text-danger{% endif %}">
-              {{ perf.sector_change_halfyear }} %
-            </td>
-            <td class="text-center {% if perf.sector_change_year > 0 %}text-success{% else %}text-danger{% endif %}">
-              {{ perf.sector_change_year }} %
-            </td>
+            {% if 'sector_change_custom' in perf %}
+              <td class="text-center fw-bold">{{ perf.sector_change_custom|change_cell }}</td>
+            {% endif %}
+            <td style="{% if perf.sector_change_day <= 0 %} color:rgb(48,84,150){% endif %}"  class="text-center fw-bold">{{ perf.sector_change_day|change_cell }}</td>
+            <td style="{% if perf.sector_change_week <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ perf.sector_change_week|change_cell }}</td>
+            <td style="{% if perf.sector_change_month <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ perf.sector_change_month|change_cell }}</td>
+            <td style="{% if perf.sector_change_quart <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ perf.sector_change_quart|change_cell }}</td>
+            <td style="{% if perf.sector_change_halfyear <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ perf.sector_change_halfyear|change_cell }}</td>
+            <td style="{% if perf.sector_change_year <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ perf.sector_change_year|change_cell }}</td>
           </tr>
           {% for i in perf.top_change_day %}
             <tr class="collapse collapsable-{{ sector }}">
-              <th scope="row" class="text-muted">Top{{ forloop.counter }}</th>
-              <td class="text-center">{{ perf.top_change_day|company_cell:forloop.counter }}</td>
+              <th scope="row" class="text-muted">Top {{ forloop.counter }}</th>
+              {% if 'top_change_custom' in perf %}
+                <td class="text-center font-weight-bold">{{ perf.top_change_custom|company_cell:forloop.counter }}</td>
+              {% endif %}
+              <td class="text-center ">{{ perf.top_change_day|company_cell:forloop.counter }}</td>
               <td class="text-center">{{ perf.top_change_week|company_cell:forloop.counter }}</td>
               <td class="text-center">{{ perf.top_change_month|company_cell:forloop.counter }}</td>
               <td class="text-center">{{ perf.top_change_quart|company_cell:forloop.counter }}</td>
               <td class="text-center">{{ perf.top_change_halfyear|company_cell:forloop.counter }}</td>
-              <td class="text-center">{{ perf.top_change_year|company_cell:forloop.counter }}</td>
+              <td class="text-center">
+                {{ perf.top_change_year|company_cell:forloop.counter }}
+              </td>
             </tr>
           {% endfor %}
           {% for i in perf.bot_change_day %}
-          <tr class="collapse collapsable-{{ sector }}">
-            <th scope="row" class="text-muted">Bot{{ forloop.counter }}</th>
-            <td class="text-center">{{ perf.bot_change_day|company_cell:forloop.counter }}</td>
-            <td class="text-center">{{ perf.bot_change_week|company_cell:forloop.counter }}</td>
-            <td class="text-center">{{ perf.bot_change_month|company_cell:forloop.counter }}</td>
-            <td class="text-center">{{ perf.bot_change_quart|company_cell:forloop.counter }}</td>
-            <td class="text-center">{{ perf.bot_change_halfyear|company_cell:forloop.counter }}</td>
-            <td class="text-center">{{ perf.bot_change_year|company_cell:forloop.counter }}</td>
-          </tr>
-        {% endfor %}
+            <tr class="collapse collapsable-{{ sector }}">
+              <th scope="row" class="text-muted">Down {{ forloop.counter }}</th>
+              {% if 'bot_change_custom' in perf %}
+                <td class="text-center">
+                  {{ perf.bot_change_custom|company_cell:forloop.counter }}
+                </td>
+              {% endif %}
+              <td class="text-center">
+                {{ perf.bot_change_day|company_cell:forloop.counter }}
+              </td>
+              <td class="text-center">
+                {{ perf.bot_change_week|company_cell:forloop.counter }}
+              </td>
+              <td class="text-center">
+                {{ perf.bot_change_month|company_cell:forloop.counter }}
+              </td>
+              <td class="text-center">
+                {{ perf.bot_change_quart|company_cell:forloop.counter }}
+              </td>
+              <td class="text-center">
+                {{ perf.bot_change_halfyear|company_cell:forloop.counter }}
+              </td>
+              <td class="text-center">
+                {{ perf.bot_change_year|company_cell:forloop.counter }}
+              </td>
+            </tr>
+          {% endfor %}
         {% endfor %}
       </tbody>
     </table>
@@ -81,5 +107,28 @@
         }
       })
     }
+    window.addEventListener("load", (event) => {
+      const since = document.getElementById('inputSince'),
+      btn = document.getElementById('update'),
+      params = new URLSearchParams(window.location.search)  
+
+      var inputs = [since]
+
+      if (params.has('since')){since.value = params.get('since')}
+    
+
+      btn.addEventListener("click", (event) => {
+        window.location.search = `?since=${since.value}`
+      })
+
+      inputs.forEach((input) => {
+        input.addEventListener("keyup", (event) => {
+          event.preventDefault()
+          if (event.keyCode === 13) {
+            btn.click()
+          }
+        })
+      })
+    })
   </script>
 {% endblock script %}

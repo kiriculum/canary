@@ -29,7 +29,7 @@
   </div>
 {% endblock interface %}
 {% block main %}
-  <h1 class="text-center mt-2">US Treasury Par Yield Curve Rates per Maturity</h1>
+  <h1 class="text-center mt-2">US Government Bonds - Yields Curve - Per Maturity</h1>
   <div class="d-flex justify-content-center">
     <div style="position: relative; width:85vw">
       <canvas id="chart"></canvas>
@@ -40,22 +40,62 @@
   {{ rates|json_script:'rates' }}
   <script>
     const rates = JSON.parse(document.getElementById('rates').text.replaceAll('NaN','null'))
-    console.log(rates)
-
+    
     const autocolors = window['chartjs-plugin-autocolors']
     const root = document.getElementById('chart')
     const cfg = {
       type: 'line',
       data: rates,
+      plugins: [{
+        id: 'myEventCatcher',
+        beforeEvent(chart, args, pluginOptions) {
+          const event = args.event;
+          if (event.type === 'mouseout') {
+          console.log('test')
+
+            // process the event
+          }
+        }
+      }],
       options: {
+        events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove'],
         scales: {
           y: {
-            beginAtZero: true
+            beginAtZero: true,
+            ticks:{
+              font:{
+                size: 16,
+              }  
+            }
+          },
+          x: {
+            ticks:{
+              font:{
+                size: 16,
+              }
+            }
           }
         },
         plugins: {
           autocolors: {
             offset: 10
+          },
+          legend:{
+            labels:{
+              font:{
+                size: 16,
+                weight: "bold",
+              }
+            },
+            events: ['mousemove', 'mouseout', 'click', 'touchstart', 'touchmove'],
+            onHover: function(event, legendItem) {
+              console.log(event, legendItem)
+              const ci = this.chart;
+              const index = legendItem.datasetIndex
+              var elements = ci.getDatasetMeta(index)
+              elements.dataset.options.borderWidth = 3
+              ci.render();
+            },
           }
         },
       }

@@ -10,6 +10,8 @@ from django.db.models import ForeignKey, FloatField, DateField, CharField, Model
     CASCADE, Index, UniqueConstraint, DateTimeField, BigIntegerField, Subquery, F, Window, OuterRef, Sum, QuerySet
 from django.db.models.functions import Round, Lead
 
+from markets.helpers import separate_capitalize
+
 logger = logging.getLogger('django')
 
 
@@ -49,7 +51,12 @@ class ParYieldRate(Model):
     @staticmethod
     def serialize_per_day(obj: dict) -> dict[str, Union[str, dict]]:
         """Return a row with just setting date as a label"""
-        return {'label': obj.pop('date').strftime('%d/%m/%y'), 'data': obj}
+
+        label = obj.pop('date').strftime('%d/%m/%y')
+        for key, value in list(obj.items()):
+            obj[separate_capitalize(key)] = obj.pop(key)
+
+        return {'label': label, 'data': obj}
 
     @classmethod
     def serialize_per_maturity(cls, query: Iterable) -> dict[str, list]:
@@ -57,7 +64,7 @@ class ParYieldRate(Model):
         fields = cls.get_fields_list()
         fields.pop(fields.index('date'))
         # Setup initial empty data
-        datasets = {field: {'data': [], 'label': field} for field in fields}
+        datasets = {field: {'data': [], 'label': separate_capitalize(field)} for field in fields}
         labels = []
 
         for obj in query:
