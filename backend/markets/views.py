@@ -4,7 +4,7 @@ from django.views.generic import TemplateView
 
 from .helpers import parse_date
 from .models import TreasuryRates
-from .reports import get_market_shares
+from .reports import get_market_dynamics, get_assets_dynamics
 
 
 class IndexView(TemplateView):
@@ -78,6 +78,8 @@ class YieldPerMaturityView(TemplateView):
         # Filter data for a period
         for filt_str, border_str in [('date__gte', 'since'), ('date__lte', 'to')]:
             border = params.get(border_str)
+            if border_str == 'since' and not border:
+                border = '01/01/2007'  # If no start period provided set default to 2007
             border = parse_date(border) if border else None
             if border:
                 query = query.filter(**{filt_str: border})
@@ -110,8 +112,14 @@ class SectorsView(TemplateView):
         context = super().get_context_data(**kwargs)
         params = kwargs['params']
         custom_since = parse_date(params.get('since'))
+        custom_to = None
         if custom_since:
             context['custom'] = True
+            custom_to = parse_date(params.get('to'))
 
-        context['sectors'] = get_market_shares(custom_since)
+        assets = get_assets_dynamics(custom_since, custom_to)
+        sp500 = assets.pop('S&P500')
+        context['assets'] = assets
+        context['sp500'] = sp500
+        context['sectors'] = get_market_dynamics(custom_since, custom_to)
         return context

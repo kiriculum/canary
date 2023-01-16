@@ -4,6 +4,10 @@
 {% endblock title %}
 {% block interface %}
   <div class="d-flex justify-content-end">
+    <div class="d-flex flex-column me-2 align-content-center text-secondary">
+      <div class="col mt-1"><span>Date format</span></div>
+      <div class="col"><span>DD/MM/YY</span></div>
+    </div>
     <div class="form-floating ms-1">
       <input type="text"
              class="form-control flex-shrink-1 "
@@ -116,7 +120,8 @@
       if (params.has('since')){since.value = params.get('since')}
       if (params.has('to')){to.value = params.get('to')}
       if (params.has('limit')){limit.value = params.get('limit')}
-    
+      
+      since.value = since.value || '01/01/07'
 
       btn.addEventListener("click", (event) => {
         window.location.search = `?since=${since.value}&to=${to.value}&limit=${limit.value}`

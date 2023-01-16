@@ -5,8 +5,11 @@ register = template.Library()
 
 
 @register.filter
-def company_cell(value: list, arg: int = 0):
-    comp = value[arg-1]
+def company_cell(value: list | None, arg: int = 0):
+    try:
+        comp = value[arg - 1]
+    except IndexError:
+        return '-'
     color = 'style=color:rgb(48,84,150)'
     return mark_safe(f'<span>{comp[0]}</span>'
                      f'<span {"" if comp[1] > 0 else color} class="ms-2">'
@@ -14,5 +17,7 @@ def company_cell(value: list, arg: int = 0):
 
 
 @register.filter
-def change_cell(value: int):
+def change_cell(value: int | None):
+    if value is None:
+        return '-'
     return f'{value}%' if value > 0 else f'({abs(value)}%)'
