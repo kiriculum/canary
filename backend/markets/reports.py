@@ -7,7 +7,7 @@ from markets.models import YahooStockPrice, CompanyQuerySet, Share, Company, Ass
 
 
 def get_price_changes_per_company(companies_qs: CompanyQuerySet, custom_since: date | None, custom_to: date | None):
-    since = date.today() - timedelta(days=400)  # Query prices for 400 days by default
+    since = date.today() - timedelta(days=365)  # Query prices for 400 days by default
     custom_offset_since = 0
     custom_offset_to = 0
     if custom_since:
@@ -15,7 +15,7 @@ def get_price_changes_per_company(companies_qs: CompanyQuerySet, custom_since: d
         custom_offset_since = max(0, (date.today() - custom_since).days)
         if custom_to:
             custom_offset_to = min(max(0, (date.today() - custom_to).days), custom_offset_since)
-    base_prices_qs = YahooStockPrice.objects.filter(date__gte=since)
+    base_prices_qs = YahooStockPrice.objects.filter(date__gte=since - timedelta(days=5))
 
     df = pandas.DataFrame(list(base_prices_qs.values('date', 'company', 'close')))
 
@@ -33,7 +33,7 @@ def get_price_changes_per_company(companies_qs: CompanyQuerySet, custom_since: d
             if period > len(company_df.index):  # Period longer than available price history
                 continue
             company_res[period_name] = round(cur_price / company_df['close'].iloc[period], 4)
-        if custom_offset_since and custom_offset_since < len(company_df.index):
+        if custom_offset_since and custom_offset_since <= len(company_df.index):
             custom_price = cur_price
             if custom_offset_to and custom_offset_to < len(company_df.index):
                 custom_price = company_df['close'].iloc[custom_offset_to]
@@ -153,16 +153,17 @@ def get_market_dynamics(custom_since=None, custom_to=None):
 
 def get_assets_dynamics(custom_since=None, custom_to=None):
     asset_qs = Asset.objects.all()
+    most_recent_date = YahooAssetPrice.objects.first().date
 
-    since = date.today() - timedelta(days=400)  # Query prices for 400 days by default
+    since = most_recent_date - timedelta(days=400)  # Query prices for 400 days by default
     custom_offset_since = 0
     custom_offset_to = 0
     if custom_since:
         since = custom_since if since > custom_since else since
-        custom_offset_since = max(0, (date.today() - custom_since).days)
+        custom_offset_since = max(0, (most_recent_date - custom_since).days)
         if custom_to:
-            custom_offset_to = min(max(0, (date.today() - custom_to).days), custom_offset_since)
-    base_prices_qs = YahooAssetPrice.objects.filter(date__gte=since)
+            custom_offset_to = min(max(0, (most_recent_date - custom_to).days), custom_offset_since)
+    base_prices_qs = YahooAssetPrice.objects.filter(date__gte=since - timedelta(days=5))
 
     df = pandas.DataFrame(list(base_prices_qs.values('date', 'asset', 'close')))
 
@@ -177,16 +178,19 @@ def get_assets_dynamics(custom_since=None, custom_to=None):
         cur_price = asset_df['close'].iloc[0]
         asset_res['current_price'] = cur_price
         for period_name, period in CompanyQuerySet.changes.items():
-            if period > len(asset_df.index):  # Period longer than available price history
+            if period >= len(asset_df.index):  # Period longer than available price history
                 continue
             prev_price = asset_df['close'].iloc[period]
             asset_res[period_name] = round((cur_price / prev_price - 1) * 100, 1)
-        if custom_offset_since and custom_offset_since < len(asset_df.index):
-            custom_price = cur_price
-            if custom_offset_to and custom_offset_to < len(asset_df.index):
-                custom_price = asset_df['close'].iloc[custom_offset_to]
-                asset_res['custom_price'] = custom_price
-            asset_res['change_custom'] = round(
-                (custom_price / asset_df['close'].iloc[custom_offset_since] - 1) * 100, 1)
+        if custom_offset_since:
+            if custom_offset_since < len(asset_df.index):
+                custom_price = cur_price
+                if custom_offset_to and custom_offset_to < len(asset_df.index):
+                    custom_price = asset_df['close'].iloc[custom_offset_to]
+                    asset_res['custom_price'] = custom_price
+                asset_res['change_custom'] = round(
+                    (custom_price / asset_df['close'].iloc[custom_offset_since] - 1) * 100, 1)
+            else:
+                asset_res['change_custom'] = None
         res[name] = asset_res
     return res

@@ -222,7 +222,7 @@ class MarketSharesSyncer:
         cls.base_sync_prices(query, 'company', YahooStockPrice)
 
     @classmethod
-    def base_sync_prices(cls, query: QuerySet, item_name: str, price_model: type[Model]) -> None:
+    def base_sync_prices(cls, query: QuerySet, item_name: str, price_model: type[Model], force: bool = False) -> None:
         """Sync stock prices for top500 from Yahoo Finance"""
         total = query.count()
         logger.info(f'Starting sync prices for {total} companies')
@@ -236,11 +236,11 @@ class MarketSharesSyncer:
                 yahoo_code = local_codes_to_yahoo.get(item.code, cls.transform_code(item.code))
             last_price = price_model.objects.filter(**{item_name: item}).order_by('-date').first()
             to = datetime(*date.today().timetuple()[0:3])
-            # If no prices are present - fetch data for last 3 years
-            if last_price:
-                since = datetime(*last_price.date.timetuple()[0:3]) - timedelta(days=3)  # 3 days offset to interleave
-            else:
-                since = to - timedelta(days=365 * 3)
+            since = to - timedelta(days=365 * 20)  # Fetch data for 20 years by default
+            if last_price:  # 3 days offset to interleave
+                since = datetime(*last_price.date.timetuple()[0:3]) - timedelta(days=3)
+            if force:
+                since = to - timedelta(days=365 * 20)  # Force fetching for 20 years
             if to - since <= timedelta(days=4):  # Skip if period distance is less than 1 day
                 already_fresh.append(item.code)
                 continue
@@ -313,7 +313,7 @@ class SyncExecutor:
     def sync_prices(cls) -> str:
         MarketSharesSyncer.sync_stockprices()
         MarketSharesSyncer.sync_assetprices()
-        return 'Sync market shares count finished\n'
+        return 'Sync shares and assets prices finished\n'
 
     @classmethod
     def sync_allmarkets(cls) -> str:

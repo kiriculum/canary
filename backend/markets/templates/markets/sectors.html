@@ -27,7 +27,7 @@
   </div>
 {% endblock interface %}
 {% block main %}
-  <div class="container justify-content-center overflow-auto">
+  <div class="container justify-content-center">
     <h2 class="text-center mt-2">Market Sectors Performance</h2>
     <table class="table table-sm table-hover">
       <thead>
@@ -44,16 +44,16 @@
       </thead>
       <tbody>
         <tr id="sector-sp500" class="collapsable">
-          <th scope='row'>S&P500</th>
+          <th style="min-width: 300px;" scope='row'>S&P500</th>
           {% if custom %}
-            <td style="{% if sp500.change_custom <= 0 %} color:rgb(48,84,150){% endif %}" class="text-center fw-bold">{{ sp500.change_custom|change_cell }}</td>
+            <td style="min-width: 150px;{% if sp500.change_custom <= 0 %} color:rgb(48,84,150){% endif %}" class="text-center fw-bold">{{ sp500.change_custom|change_cell }}</td>
           {% endif %}
-          <td style="{% if sp500.change_day <= 0 %} color:rgb(48,84,150){% endif %}"  class="text-center fw-bold">{{ sp500.change_day|change_cell }}</td>
-          <td style="{% if sp500.change_week <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_week|change_cell }}</td>
-          <td style="{% if sp500.change_month <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_month|change_cell }}</td>
-          <td style="{% if sp500.change_quart <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_quart|change_cell }}</td>
-          <td style="{% if sp500.change_halfyear <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_halfyear|change_cell }}</td>
-          <td style="{% if sp500.change_year <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_year|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_day <= 0 %} color:rgb(48,84,150){% endif %}"  class="text-center fw-bold">{{ sp500.change_day|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_week <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_week|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_month <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_month|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_quart <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_quart|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_halfyear <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_halfyear|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_year <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_year|change_cell }}</td>
         </tr>
         {% for sector, perf in sectors.items %}
           <tr id="sector-{{ sector }}" class="collapsable">
@@ -71,7 +71,7 @@
           {% for i in perf.top_change_day %}
             <tr class="collapse collapsable-{{ sector }}">
               <th scope="row" class="text-muted">Top {{ forloop.counter }}</th>
-              {% if 'top_change_custom' in perf %}
+              {% if custom and 'top_change_custom' in perf %}
                 <td class="text-center font-weight-bold">{{ perf.top_change_custom|company_cell:forloop.counter }}</td>
               {% endif %}
               <td class="text-center ">{{ perf.top_change_day|company_cell:forloop.counter }}</td>
@@ -87,7 +87,7 @@
           {% for i in perf.bot_change_day %}
             <tr class="collapse collapsable-{{ sector }}">
               <th scope="row" class="text-muted">Down {{ forloop.counter }}</th>
-              {% if 'bot_change_custom' in perf %}
+              {% if custom and 'bot_change_custom' in perf %}
                 <td class="text-center">
                   {{ perf.bot_change_custom|company_cell:forloop.counter }}
                 </td>
@@ -131,16 +131,16 @@
       </thead>
       <tbody>
         <tr id="sector-sp500" class="collapsable">
-          <th style="min-width: 177px;" scope='row'>S&P500</th>
+          <th style="min-width: 300px;" scope='row'>S&P500</th>
           {% if custom %}
-            <td style="{% if sp500.change_custom <= 0 %} color:rgb(48,84,150){% endif %}" class="text-center fw-bold">{{ sp500.change_custom|change_cell }}</td>
+            <td style="min-width: 150px;{% if sp500.change_custom <= 0 %} color:rgb(48,84,150){% endif %}" class="text-center fw-bold">{{ sp500.change_custom|change_cell }}</td>
           {% endif %}
-          <td style="{% if sp500.change_day <= 0 %} color:rgb(48,84,150){% endif %}"  class="text-center fw-bold">{{ sp500.change_day|change_cell }}</td>
-          <td style="{% if sp500.change_week <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_week|change_cell }}</td>
-          <td style="{% if sp500.change_month <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_month|change_cell }}</td>
-          <td style="{% if sp500.change_quart <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_quart|change_cell }}</td>
-          <td style="{% if sp500.change_halfyear <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_halfyear|change_cell }}</td>
-          <td style="{% if sp500.change_year <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_year|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_day <= 0 %} color:rgb(48,84,150){% endif %}"  class="text-center fw-bold">{{ sp500.change_day|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_week <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_week|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_month <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_month|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_quart <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_quart|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_halfyear <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_halfyear|change_cell }}</td>
+          <td style="min-width: 150px;{% if sp500.change_year <= 0 %} color:rgb(48,84,150){% endif %}"   class="text-center fw-bold">{{ sp500.change_year|change_cell }}</td>
         </tr>
         {% for asset, perf in assets.items %}
           <tr id="assets-{{ asset }}" class="collapsable">
