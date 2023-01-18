@@ -7,6 +7,7 @@ Django~=4.1.5
 django-environ~=0.9.0
 djlint~=1.19.11
 numpy~=1.24.1
+lxml~=4.9.2
 openpyxl~=3.0.10
 apscheduler~=3.9.1
 uvicorn~=0.20.0

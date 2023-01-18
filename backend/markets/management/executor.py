@@ -167,7 +167,7 @@ class MarketSharesSyncer:
 
             tbody = soup.find_all('tbody')
             if not tbody:  # No table for a company on the site
-                logger.warning(f'No table with share details found on site for a company {company.code}')
+                logger.warning(f'No table with share details found on site for company {company.code}')
                 not_found.append(company.code)
                 continue
             table = tbody[1]
