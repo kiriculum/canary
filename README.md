@@ -5,8 +5,9 @@
 
 
 ## Deployment
-#TBD
+* Copy project files/clone from git
+* run `./setup.sh`
 
 
-## Usage
-#TBD
+## Start server
+* run `./runserver.sh`

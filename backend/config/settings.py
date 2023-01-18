@@ -12,11 +12,14 @@ https://docs.djangoproject.com/en/4.1/ref/settings/
 
 from pathlib import Path
 
+from apscheduler.schedulers.background import BackgroundScheduler
 from environ import Env
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 ROOT_DIR = BASE_DIR.parent
+LOGS_DIR = ROOT_DIR / 'logs'
+LOGS_DIR.mkdir(parents=True, exist_ok=True)
 
 env = Env(DEBUG=(bool, True), DJANGO_LOG_LEVEL=(str, 'INFO'))
 Env.read_env(ROOT_DIR / '.env')
@@ -41,7 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'markets',
+    'markets.apps.MarketsConfig',
 ]
 
 MIDDLEWARE = [
@@ -171,6 +174,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/4.1/howto/static-files/
 
 STATIC_URL = 'static/'
+
+MARKETS_SCHEDULER = BackgroundScheduler()
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field

@@ -187,7 +187,7 @@ class MarketSharesSyncer:
         if broke:
             logger.warning(f'Syncing was stopped while dealing with company {broke}". '
                            f'It\'s probably because of site\'s request limitations')
-        Share.objects.bulk_create(share_obj_list)
+        Share.objects.bulk_create(share_obj_list, ignore_conflicts=True)
         logger.info(f'Synced shares for {updated} companies out of {total}.')
         logger.warning("Not found share count for: " + ", ".join(not_found)) if not_found else None
 
@@ -236,11 +236,11 @@ class MarketSharesSyncer:
                 yahoo_code = local_codes_to_yahoo.get(item.code, cls.transform_code(item.code))
             last_price = price_model.objects.filter(**{item_name: item}).order_by('-date').first()
             to = datetime(*date.today().timetuple()[0:3])
-            since = to - timedelta(days=365 * 20)  # Fetch data for 20 years by default
+            since = to - timedelta(days=365 * 25)  # Fetch data for 20 years by default
             if last_price:  # 3 days offset to interleave
                 since = datetime(*last_price.date.timetuple()[0:3]) - timedelta(days=3)
             if force:
-                since = to - timedelta(days=365 * 20)  # Force fetching for 20 years
+                since = to - timedelta(days=365 * 25)  # Force fetching for 20 years
             if to - since <= timedelta(days=4):  # Skip if period distance is less than 1 day
                 already_fresh.append(item.code)
                 continue
@@ -273,7 +273,7 @@ class MarketSharesSyncer:
 
 class SyncExecutor:
     """Main sync executor"""
-    types = ['localassets', 'allrates', 'currentrates', 'top500', 'marketshares', 'prices', 'allmarkets']
+    types = ['localassets', 'allrates', 'currentrates', 'top500', 'marketshares', 'prices', 'allmarkets', 'setup']
 
     @classmethod
     def execute(cls, sync_type: list[str]):
@@ -329,3 +329,16 @@ class SyncExecutor:
     def sync_localassets(cls) -> str:
         CompanyAssetSyncer.sync()
         return 'Sync local companies and assets finished\n'
+
+    @classmethod
+    def sync_setup(cls) -> str:
+        logger.info('Starting initial setup sync')
+        now = datetime.now()
+        CompanyAssetSyncer.sync()
+        [TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, i) for i in range(now.year, 1998, -1)]
+        MarketSharesSyncer.sync_top500()
+        MarketSharesSyncer.sync_shares_count()
+        MarketSharesSyncer.sync_stockprices()
+        MarketSharesSyncer.sync_assetprices()
+
+        return 'Initial setup sync finished\n'
