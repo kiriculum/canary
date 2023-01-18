@@ -7,8 +7,10 @@
 * Postgres running with available DB and User according to `.env`
 
 ## Deployment
-* copy project files/clone from git
+* copy project files/clone from git repo
+* copy `.env.template` to `.env`. Edit database fields accordingly or leave default
 * run `./setup.sh`
+* add your server ip address/domain name to `backend.config.settings.ALLOWED_HOSTS`
 
 
 ## Start server

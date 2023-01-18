@@ -236,11 +236,11 @@ class MarketSharesSyncer:
                 yahoo_code = local_codes_to_yahoo.get(item.code, cls.transform_code(item.code))
             last_price = price_model.objects.filter(**{item_name: item}).order_by('-date').first()
             to = datetime(*date.today().timetuple()[0:3])
-            since = to - timedelta(days=365 * 25)  # Fetch data for 20 years by default
+            since = to - timedelta(days=365 * 25)  # Fetch data for 25 years by default
             if last_price:  # 3 days offset to interleave
                 since = datetime(*last_price.date.timetuple()[0:3]) - timedelta(days=3)
             if force:
-                since = to - timedelta(days=365 * 25)  # Force fetching for 20 years
+                since = to - timedelta(days=365 * 25)  # Force fetching for 25 years
             if to - since <= timedelta(days=4):  # Skip if period distance is less than 1 day
                 already_fresh.append(item.code)
                 continue

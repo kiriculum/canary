@@ -19,7 +19,7 @@ def setup_jobs():
 def main():
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-    uvicorn.run('config.asgi:app')
+    uvicorn.run('config.asgi:app', host='0.0.0.0', port=80)
 
 
 if __name__ == '__main__':
