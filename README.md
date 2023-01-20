@@ -15,3 +15,10 @@
 
 ## Start server
 * run `./runserver.sh`
+
+## Updates
+Server automatically tries to fetch new data from sources daily at 23:59:59
+
+To run data sync manually:
+* activate virtual environment `source venv/bin/activate`
+* run `python backend/manage.py sync daily`
