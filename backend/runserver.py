@@ -2,30 +2,33 @@ import os
 
 import environ
 import uvicorn
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from django.core.management import call_command
+from django.core.management import execute_from_command_line
 
-from config.settings import MARKETS_SCHEDULER
+scheduler = BackgroundScheduler()
+scheduler.start()
 
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 env = environ.Env(SERVER_PORT=(int, 80), SERVER_HOST=(str, '0.0.0.0'), SERVER_RELOAD=(bool, False))
 env.read_env('.env')
 
 
 def setup_jobs():
-    daily_market_update = 'sync allmarkets'
-    daily_bonds_update = 'sync currentrates'
-    trigger = CronTrigger(hour=23, minute=59, second=59)
+    daily_update = ['manage.py', 'sync', 'daily']
 
-    MARKETS_SCHEDULER.add_job(call_command, trigger, args=[daily_market_update])
-    MARKETS_SCHEDULER.add_job(call_command, trigger, args=[daily_bonds_update])
+    trigger = CronTrigger(hour=23, minute=59, second=59)
+    scheduler.add_job(execute_from_command_line, trigger, args=[daily_update])
 
 
 def main():
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
-
     uvicorn.run('config.asgi:app', host=env('SERVER_HOST'), port=env('SERVER_PORT'), reload=env('SERVER_RELOAD'))
 
 
+def run_update(update: list[str]):
+    execute_from_command_line(update)
+
+
 if __name__ == '__main__':
-    main()
     setup_jobs()
+    main()

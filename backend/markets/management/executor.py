@@ -69,7 +69,7 @@ class TreasuryRatesSyncer:
     yearly_url = us_treasury_yearly_rates
 
     @classmethod
-    def sync(cls, rate_type: TreasuryRatesType, year: int, month: Optional[int] = None) -> None:
+    def sync_bonds(cls, rate_type: TreasuryRatesType, year: int, month: Optional[int] = None) -> None:
         """Sync treasure rates for given year or month"""
         if month:
             url = cls.monthly_url.format(f'{year}{month:02}', rate_type.value)
@@ -98,7 +98,7 @@ class CompanyAssetSyncer:
     companies_file = ROOT_DIR / company_asset_filename
 
     @classmethod
-    def sync(cls) -> None:
+    def sync_localassets(cls) -> None:
         if not cls.companies_file.exists():
             raise CommandError(f'File with companies and assets not found in path: {cls.companies_file}')
         logger.info(f'Syncing companies and assets from file: {company_asset_filename}')
@@ -275,7 +275,8 @@ class MarketSharesSyncer:
 
 class SyncExecutor:
     """Main sync executor"""
-    types = ['localassets', 'allrates', 'currentrates', 'top500', 'marketshares', 'prices', 'allmarkets', 'setup']
+    types = ['localassets', 'allrates', 'currentrates', 'top500', 'marketshares', 'prices', 'allmarkets', 'setup',
+             'daily']
 
     @classmethod
     def execute(cls, sync_type: list[str]):
@@ -290,7 +291,7 @@ class SyncExecutor:
         """Sync treasury rates for 3 years"""
         now = datetime.now()
         [
-            TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year - i) for i in range(15)
+            TreasuryRatesSyncer.sync_bonds(TreasuryRatesType.ParYieldCurve, now.year - i) for i in range(15)
         ]
         return 'Sync rates for last three years finished\n'
 
@@ -298,7 +299,7 @@ class SyncExecutor:
     def sync_currentrates(cls) -> str:
         """Sync treasury rates for current month"""
         now = datetime.now()
-        TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, now.year, month=now.month)
+        TreasuryRatesSyncer.sync_bonds(TreasuryRatesType.ParYieldCurve, now.year, month=now.month)
         return 'Sync rates for current month finished\n'
 
     @classmethod
@@ -328,16 +329,22 @@ class SyncExecutor:
         return 'Sync market shares finished\n'
 
     @classmethod
+    def sync_daily(cls) -> str:
+        res = cls.sync_currentrates()
+        logger.info(res)
+        return cls.sync_allmarkets()
+
+    @classmethod
     def sync_localassets(cls) -> str:
-        CompanyAssetSyncer.sync()
+        CompanyAssetSyncer.sync_localassets()
         return 'Sync local companies and assets finished\n'
 
     @classmethod
     def sync_setup(cls) -> str:
         logger.info('Starting initial setup sync')
         now = datetime.now()
-        CompanyAssetSyncer.sync()
-        [TreasuryRatesSyncer.sync(TreasuryRatesType.ParYieldCurve, i) for i in range(now.year, 1998, -1)]
+        CompanyAssetSyncer.sync_localassets()
+        [TreasuryRatesSyncer.sync_bonds(TreasuryRatesType.ParYieldCurve, i) for i in range(now.year, 1998, -1)]
         MarketSharesSyncer.sync_top500()
         MarketSharesSyncer.sync_shares_count()
         MarketSharesSyncer.sync_stockprices()
