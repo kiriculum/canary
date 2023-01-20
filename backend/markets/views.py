@@ -41,7 +41,7 @@ class YieldPerDayView(TemplateView):
                 pass
 
         selections = {
-            'Today': 0,
+            'Yesterday': 0,
             'Week': 5,
             'Month': 20,
             'Quarter': 60,
@@ -118,7 +118,7 @@ class SectorsView(TemplateView):
             custom_to = parse_date(params.get('to'))
 
         assets = get_assets_dynamics(custom_since, custom_to)
-        sp500 = assets.pop('S&P500')
+        sp500 = assets.pop('S&P 500')
         context['assets'] = assets
         context['sp500'] = sp500
         context['sectors'] = get_market_dynamics(custom_since, custom_to)

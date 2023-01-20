@@ -7,7 +7,8 @@ from markets.models import YahooStockPrice, CompanyQuerySet, Share, Company, Ass
 
 
 def get_price_changes_per_company(companies_qs: CompanyQuerySet, custom_since: date | None, custom_to: date | None):
-    since = date.today() - timedelta(days=365)  # Query prices for 400 days by default
+    most_recent_date = YahooStockPrice.objects.first().date
+    since = most_recent_date - timedelta(days=365)  # Query prices for 400 days by default
     custom_offset_since = 0
     custom_offset_to = 0
     if custom_since:

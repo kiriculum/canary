@@ -27,7 +27,7 @@
   </div>
 {% endblock interface %}
 {% block main %}
-  <div class="container justify-content-center">
+  <div class="container justify-content-center overflow-auto">
     <h2 class="text-center mt-2">Market Sectors Performance</h2>
     <table class="table table-sm table-hover">
       <thead>
@@ -44,7 +44,7 @@
       </thead>
       <tbody>
         <tr id="sector-sp500" class="collapsable">
-          <th style="min-width: 300px;" scope='row'>S&P500</th>
+          <th style="min-width: 300px;" scope='row'>S&P 500</th>
           {% if custom %}
             <td style="min-width: 150px;{% if sp500.change_custom <= 0 %} color:rgb(48,84,150){% endif %}" class="text-center fw-bold">{{ sp500.change_custom|change_cell }}</td>
           {% endif %}
@@ -131,7 +131,7 @@
       </thead>
       <tbody>
         <tr id="sector-sp500" class="collapsable">
-          <th style="min-width: 300px;" scope='row'>S&P500</th>
+          <th style="min-width: 300px;" scope='row'>S&P 500</th>
           {% if custom %}
             <td style="min-width: 150px;{% if sp500.change_custom <= 0 %} color:rgb(48,84,150){% endif %}" class="text-center fw-bold">{{ sp500.change_custom|change_cell }}</td>
           {% endif %}

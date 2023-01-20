@@ -1,10 +1,14 @@
 import os
 
+import environ
 import uvicorn
 from apscheduler.triggers.cron import CronTrigger
 from django.core.management import call_command
 
 from config.settings import MARKETS_SCHEDULER
+
+env = environ.Env(SERVER_PORT=(int, 80), SERVER_HOST=(str, '0.0.0.0'), SERVER_RELOAD=(bool, False))
+env.read_env('.env')
 
 
 def setup_jobs():
@@ -19,7 +23,7 @@ def setup_jobs():
 def main():
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings')
 
-    uvicorn.run('config.asgi:app', host='0.0.0.0', port=80)
+    uvicorn.run('config.asgi:app', host=env('SERVER_HOST'), port=env('SERVER_PORT'), reload=env('SERVER_RELOAD'))
 
 
 if __name__ == '__main__':

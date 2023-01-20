@@ -225,7 +225,7 @@ class MarketSharesSyncer:
     def base_sync_prices(cls, query: QuerySet, item_name: str, price_model: type[Model], force: bool = False) -> None:
         """Sync stock prices for top500 from Yahoo Finance"""
         total = query.count()
-        logger.info(f'Starting sync prices for {total} companies')
+        logger.info(f'Starting sync prices for {total} companies/assets')
         updated = 0
         error_skipped = []
         already_fresh = []
@@ -251,7 +251,9 @@ class MarketSharesSyncer:
                 error_skipped.append([item.code])
                 continue
             # Process price DataFrame
+
             prices.index = pd.DatetimeIndex(prices['Date'].apply(lambda x: datetime.strptime(x, '%Y-%m-%d')))
+            prices = prices[~prices.index.duplicated(keep='first')]
             prices.drop('Date', axis=1, inplace=True)
             prices.columns = list(map(str.lower, prices.columns))
             prices = prices.resample('D').interpolate(limit=30)

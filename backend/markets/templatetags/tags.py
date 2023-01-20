@@ -11,9 +11,9 @@ def company_cell(value: list | None, arg: int = 0):
     except IndexError:
         return '-'
     color = 'style=color:rgb(48,84,150)'
-    return mark_safe(f'<span>{comp[0]}</span>'
+    return mark_safe(f'<span {"" if comp[1] > 0 else color}>{comp[0]}</span>'
                      f'<span {"" if comp[1] > 0 else color} class="ms-2">'
-                     f'{f"{comp[1]}" if comp[1] > 0 else f"({abs(comp[1])}%)"}</span>')
+                     f'{f"{comp[1]}%" if comp[1] > 0 else f"({abs(comp[1])}%)"}</span>')
 
 
 @register.filter
